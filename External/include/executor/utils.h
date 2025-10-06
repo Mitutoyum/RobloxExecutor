@@ -29,5 +29,5 @@ void REPLPrint(const std::string& message);
 
 std::string GenerateGUID();
 
-Result CheckRequiredKeys(const json& data, const std::vector<std::string>& keys, json& response, int PID);
+Result CheckRequiredKeys(const json& data, const std::vector<std::string>& keys);
 
