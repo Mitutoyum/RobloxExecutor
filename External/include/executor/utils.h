@@ -3,6 +3,9 @@
 #include <Windows.h>
 #include <string>
 
+#include "nlohmann/json.hpp"
+using nlohmann::json;
+
 #define CHECK(condition, error_message, result) \
 	if (!(condition)) { \
 		result.success = false; \
@@ -26,4 +29,5 @@ void REPLPrint(const std::string& message);
 
 std::string GenerateGUID();
 
+Result CheckRequiredKeys(const json& data, const std::vector<std::string>& keys, json& response, int PID);
 
