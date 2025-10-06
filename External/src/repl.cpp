@@ -37,30 +37,28 @@ void REPL::Run() {
 			auto initialize_client = [&](DWORD _PID) {
 				try {
 					auto client = std::make_unique<Client>(_PID, _server);
-					Result result = client->Initialize();
-					if (!result.success) {
-						REPLPrint("[!] Failed to initialize client " + PID);
-						REPLPrint(result.message);
-						return;
-					}
+					client->Inject();
 					_server.AddClient(std::move(client));
+					REPLPrint("[*] Injected client " + std::to_string(_PID) + " successfully");
+
 				}
-				catch (const std::exception& e) {
-					REPLPrint("[!]" + std::string(e.what()));
+				catch (const std::exception& exception) {
+					REPLPrint("[!] Failed to initialize client " + std::to_string(_PID));
+					REPLPrint("[!] " + std::string(exception.what()));
 				}
 			};
 
 			if (iss >> PID) {
 				initialize_client(PID);
 			}
-			else { // initialize all
+			else { // inject all
 				std::vector<DWORD> PIDs = GetProcessIds(L"RobloxPlayerBeta.exe");
 				if (PIDs.empty()) {
 					REPLPrint("[!] Could not find any roblox process");
 					continue;
 				}
 
-				for (auto const& _PID : PIDs) {
+				for (const auto& _PID : PIDs) {
 					initialize_client(_PID);
 				}
 			}
@@ -73,6 +71,9 @@ void REPL::Run() {
 					REPLPrint("[!] Invalid path");
 					continue;
 				}
+
+				REPLPrint("[*] " + fs_path.filename().string() + " has been selected");
+
 			}
 			else {
 				REPLPrint("[!] No path was specified");
@@ -96,27 +97,25 @@ void REPL::Run() {
 			if (iss >> PID) {
 				for (const auto& client : _server.GetClients()) {
 					if (client->GetProcessId() == PID) {
-						Result execute_result = client->Execute(buffer.str());
-
-						if (!execute_result.success) {
-							REPLPrint(execute_result.message);
-							continue;
+						try {
+							client->Execute(buffer.str());
+							REPLPrint("[*] Executed successfully for client " + PID);
 						}
-						REPLPrint("[*] Executed successfully for client" + PID);
+						catch (const std::exception& exception) {
+							REPLPrint(exception.what());
+						}
 					}
 				}
 			}
 			else {
 				for (const auto& client : _server.GetClients()) {
-					//if (client->GetProcessId() == PID) {
-						Result execute_result = client->Execute(buffer.str());
-
-						if (!execute_result.success) {
-							REPLPrint(execute_result.message);
-							continue;
-						}
+					try {
+						client->Execute(buffer.str());
 						REPLPrint("[*] Executed successfully for client " + std::to_string(client->GetProcessId()));
-					//}
+					}
+					catch (const std::exception& exception) {
+						REPLPrint("[!] " + std::string(exception.what()));
+					}
 				}
 			}
 		}

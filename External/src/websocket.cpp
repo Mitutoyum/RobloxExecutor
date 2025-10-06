@@ -29,7 +29,6 @@ Websocket::Websocket(std::string host, int port) : _host(host), _port(port), _se
 
                 if (it != _connections.end())
                 {
-                    REPLPrint("[*] Client " + std::to_string(it->first) + " disconnected");
                     _connections.erase(it);
                 }
             } else if (message->type == ix::WebSocketMessageType::Message) {
@@ -61,8 +60,6 @@ Websocket::Websocket(std::string host, int port) : _host(host), _port(port), _se
                 if (action == "initialize") {
                     for (const auto& connection : _server.getClients()) {
                         if (connection.get() == &websocket) {
-                            REPLPrint("[*] Client " + std::to_string(PID) + " connected");
-
                             _connections.emplace((DWORD)data["pid"], connection);
                             websocket.setPingInterval(10000);
                         }
@@ -72,19 +69,19 @@ Websocket::Websocket(std::string host, int port) : _host(host), _port(port), _se
                     json response;
 
                     response["type"] = "response";
+                    response["success"] = false;
                     if (!id.empty()) response["id"] = id;
 
+                    
+                    try {
+                        CheckRequiredKeys(data, {"source"});
 
-                    if (!data.contains("source")) {
-                        response["success"] = false;
-                        response["message"] = "source not found";
-                        return Send(response, PID);
+                        std::string bytecode = Compile(data["source"]);
+                        response["success"] = true;
                     }
-                        
-                    Result compile_result = Compile(data["source"]);
-                    response["success"] = compile_result.success;
-
-                    if (!compile_result.success) response["message"] = compile_result.message;
+                    catch (const std::exception& exception) {
+                        response["message"] = exception.what();
+                    }
 
                     return Send(response, PID);
                 }
@@ -95,38 +92,41 @@ Websocket::Websocket(std::string host, int port) : _host(host), _port(port), _se
                     response["success"] = false;
                     if (!id.empty()) response["id"] = id;
 
-                    if (!data.contains("chunk")) {
-                        response["message"] = "source not found";
-                        return Send(response, PID);
-                    }
-                    else if (!data.contains("chunk_name")) {
-                        response["message"] = "script_name not found";
-                        return Send(response, PID);
-                    }
-                    else if (!data.contains("script_name")) {
-                        response["message"] = "script_name not found";
-                        return Send(response, PID);
-                    }
+                    try {
+                        CheckRequiredKeys(data, { "chunk", "chunk_name", "script_name" });
 
-                    Result compile_result = Compile(data["chunk"]);
+                        const std::string& chunk = data["chunk"];
+                        const std::string& chunk_name = data["chunk_name"];
+                        const std::string& script_name = data["script_name"];
 
-                    if (!compile_result.success) {
-                        response["message"] = compile_result.message;
-                        return Send(response, PID);
-                    }
+                        Compile(chunk); // this is to check
 
-                    for (const auto& client : _clients) {
-                        if (client->GetProcessId() == PID) {
+                        for (const auto& client : _clients) {
+                            if (client->GetProcessId() == PID) {
 
-                            Result loadstring_result = client->Loadstring(data["chunk"], data["chunk_name"], data["script_name"]);
-                            response["success"] = loadstring_result.success;
+                                uintptr_t address = client->GetAddress();
+                                HANDLE handle = client->GetHandle();
 
-                            if (!loadstring_result.success) response["message"] = loadstring_result.message;
-                            
-                            return Send(response, PID);
+                                auto Datamodel = std::make_unique<Instance>(GetDatamodel(address, handle), handle);
+
+                                auto Script = Datamodel->FindFirstChildOfClass("RobloxReplicatedStorage")
+                                    ->FindFirstChild("Executor")
+                                    ->FindFirstChild("Scripts")
+                                    ->FindFirstChild(script_name);
+
+                                std::string bytecode = Compile("local function " + chunk_name + "(...)do setmetatable(getgenv and getgenv()or{},{__newindex=function(t,i,v)rawset(t,i,v)getfenv()[i]=v;end})end;" + chunk + "\nend;return " + chunk_name);
+
+                                Script->UnlockModule();
+                                Script->SetBytecode(bytecode);
+                                response["success"] = true;
+                            }
                         }
                     }
+                    catch (const std::exception& exception) {
+                        response["message"] = exception.what();
+                    }
 
+                    return Send(response, PID);
                 }
             }
         }
