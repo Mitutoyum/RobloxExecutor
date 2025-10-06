@@ -7,43 +7,42 @@
 std::vector<DWORD> GetProcessIds(const wchar_t* name) {
 	std::vector<DWORD> PIDs;
 
-	HANDLE SnapShot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
-	if (SnapShot == INVALID_HANDLE_VALUE) {
+	HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+	if (snapshot == INVALID_HANDLE_VALUE) {
 		return PIDs;
 	}
 
 	PROCESSENTRY32W entry = { sizeof(PROCESSENTRY32W) };
 
-	if (Process32FirstW(SnapShot, &entry)) {
+	if (Process32FirstW(snapshot, &entry)) {
 		if (_wcsicmp(name, entry.szExeFile) == 0) {
 			PIDs.push_back(entry.th32ProcessID);
 		}
-		while (Process32NextW(SnapShot, &entry)) {
+		while (Process32NextW(snapshot, &entry)) {
 			if (_wcsicmp(name, entry.szExeFile) == 0) {
 				PIDs.push_back(entry.th32ProcessID);
 			}
 		}
 	}
 
-	CloseHandle(SnapShot);
+	CloseHandle(snapshot);
 	return PIDs;
 
 }
 
 uintptr_t GetBaseAddress(DWORD PID) {
-	uintptr_t baseAddress = NULL;
+	uintptr_t base_address = 0;
 	HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, PID);
 
 	if (snapshot != INVALID_HANDLE_VALUE) {
-		MODULEENTRY32 moduleEntry = { sizeof(moduleEntry) };
-		//moduleEntry.dwSize = sizeof(moduleEntry);
-		if (Module32First(snapshot, &moduleEntry)) {
-			baseAddress = reinterpret_cast<uintptr_t>(moduleEntry.modBaseAddr);
+		MODULEENTRY32 module_entry = { sizeof(module_entry) };
+		if (Module32First(snapshot, &module_entry)) {
+			base_address = reinterpret_cast<uintptr_t>(module_entry.modBaseAddr);
 		}
 	}
 
 	CloseHandle(snapshot);
-	return baseAddress;
+	return base_address;
 }
 
 HWND GetWindowFromProcessId(DWORD PID) {
@@ -73,12 +72,12 @@ HWND GetWindowFromProcessId(DWORD PID) {
 }
 
 void EnableVirtualTerminal() {
-	HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-	if (hOut == INVALID_HANDLE_VALUE) return;
+	HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+	if (handle == INVALID_HANDLE_VALUE) return;
 
-	DWORD dwMode = 0;
-	if (!GetConsoleMode(hOut, &dwMode)) return;
+	DWORD mode = 0;
+	if (!GetConsoleMode(handle, &mode)) return;
 
-	dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-	SetConsoleMode(hOut, dwMode);
+	mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+	SetConsoleMode(handle, mode);
 }
