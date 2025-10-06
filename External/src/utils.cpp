@@ -81,3 +81,31 @@ std::string GenerateGUID() {
     return "";
 
 }
+
+
+Result CheckRequiredKeys(const json& data, const std::vector<std::string>& required_keys) {
+    Result result;
+    std::vector<std::string> missing_keys;
+
+    for (const auto& key : required_keys) {
+        if (!data.contains(key)) {
+            missing_keys.push_back(key);
+        }
+    }
+
+    if (!missing_keys.empty()) {
+        std::string message = "Missing required keys: ";
+        for (size_t i = 0; i < missing_keys.size(); ++i) {
+            message += missing_keys[i];
+            if (i < missing_keys.size() - 1)
+                message += ", ";
+        }
+
+        result.success = false;
+        result.message = message;
+        return result;
+    }
+
+    result.success = true;
+    return result;
+}
