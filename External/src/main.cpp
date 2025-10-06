@@ -14,7 +14,6 @@ int main() {
 	ix::initNetSystem();
 
 	Websocket server("127.0.0.1", 9001);
-
 	REPL repl(server);
 
 	server.Run();
