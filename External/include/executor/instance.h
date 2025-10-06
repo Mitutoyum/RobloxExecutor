@@ -27,11 +27,9 @@ public:
 	std::unique_ptr<Instance> FindFirstChild(const std::string_view name, bool allow_exceptions = true) const;
 	std::unique_ptr<Instance> FindFirstChildOfClass(const std::string_view classname, bool allow_exceptions = true) const;
 
-
-	bool UnlockModule() const;
-	bool SpoofWith(uintptr_t instancePtr) const;
-
 	std::string GetBytecode() const;
-	bool SetBytecode(const std::string& bytecode) const;
+	void SetBytecode(const std::string& bytecode) const;
 
+	void UnlockModule() const;
+	void SpoofWith(uintptr_t instance_ptr) const;
 };

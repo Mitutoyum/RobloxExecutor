@@ -27,14 +27,15 @@ std::string Instance::ClassName() const {
 	uintptr_t classname_ptr = Read<uintptr_t>(class_descriptor + Offsets::Instance::ClassName, _handle);
 
 	if (!classname_ptr) {
-		return "Unknown";
+		return "";
 	}
 
 	return Read<std::string>(classname_ptr, _handle);
 }
 	
 std::unique_ptr<Instance> Instance::Parent() const {
-	return std::make_unique<Instance>(Read<uintptr_t>(_address + Offsets::Instance::Parent, _handle), _handle);
+	uintptr_t parent = Read<uintptr_t>(_address + Offsets::Instance::Parent, _handle);
+	return std::make_unique<Instance>(parent, _handle);
 }
 
 std::vector<uintptr_t> Instance::GetChildrenAddresses() const {
@@ -76,7 +77,7 @@ std::unique_ptr<Instance> Instance::FindFirstChild(const std::string_view name, 
 	if (child_address)
 		return std::make_unique<Instance>(child_address, _handle);
 	if (allow_exceptions)
-		throw std::runtime_error("failed to find " + std::string(name) + " under " + Name());
+		throw std::runtime_error("Failed to find " + std::string(name) + " under " + Name());
 	return nullptr;
 }
 
@@ -128,26 +129,31 @@ std::string Instance::GetBytecode() const {
 }
 
 
-bool Instance::SetBytecode(const std::string& bytecode) const { // sign + compress first
+void Instance::SetBytecode(const std::string& bytecode) const {
 	if (ClassName() != "LocalScript" && ClassName() != "ModuleScript")
-		return false;
+		throw std::runtime_error(Name() + " is not a localscript or a modulescript");
 
 	std::uintptr_t embedded_offset = (ClassName() == "LocalScript") ? Offsets::LocalScript::ByteCode : Offsets::ModuleScript::ByteCode;
 	std::uintptr_t embedded_ptr = Read<uintptr_t>(_address + embedded_offset, _handle);
 
-	return Write<std::string>(embedded_ptr + Offsets::ByteCode::Pointer, bytecode, _handle, embedded_ptr + Offsets::ByteCode::Size);
+	if (!Write<std::string>(embedded_ptr + Offsets::ByteCode::Pointer, bytecode, _handle, embedded_ptr + Offsets::ByteCode::Size))
+		throw std::runtime_error("Failed to set bytecode " + Name());
 }
 
-bool Instance::UnlockModule() const {
-	if (ClassName() == "ModuleScript") {
-		return Write<uintptr_t>(_address + (0x190 - 0x4), 0x100000000, _handle) && // moduleflags
-		       Write<uintptr_t>(_address + 0x190, 0x1, _handle); // iscorescript
+void Instance::UnlockModule() const {
+	if (ClassName() != "ModuleScript") {
+		throw std::runtime_error(Name() + " is not a modulescript");
 	}
-	return false;
+
+	if (!(Write<uintptr_t>(_address + Offsets::ModuleScript::ModuleFlags, 0x100000000, _handle) &&
+		Write<uintptr_t>(_address + Offsets::ModuleScript::IsCoreScript, 0x1, _handle))) {
+		throw std::runtime_error("Failed to unlock module " + Name());
+	}
 }
 
-bool Instance::SpoofWith(uintptr_t instance_ptr) const {
+void Instance::SpoofWith(uintptr_t instance_ptr) const {
 
-	return Write<uintptr_t>(_address + 0x8, instance_ptr, _handle); // 0x8 = this pointer
-
+	if (!Write<uintptr_t>(_address + 0x8, instance_ptr, _handle)) {
+		throw std::runtime_error("Failed to spoof instance " + Name() + " with " + Read<std::string>(Read<uintptr_t>(_address + Offsets::Instance::Name, _handle), _handle));
+	}
 }
