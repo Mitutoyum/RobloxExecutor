@@ -25,7 +25,14 @@ There are 3 commands:
 - Implement HttpGet
 - Improve the REPL
 
+## Finding/Updating Offsets
+Offset Providers:
+- [imtheo.lol](https://imtheo.lol/Offsets/Offsets.hpp)
+- [offsets.ntgetwritewatch.workers.dev](https://offsets.ntgetwritewatch.workers.dev/offsets.hpp)
+
+Research servers:
+- https://discord.gg/rPc56a3J
+- https://discord.gg/r4Jtc5FN
 
 ## 🚀 About Me
 Discord: `mitutoyum`
-
