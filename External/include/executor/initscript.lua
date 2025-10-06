@@ -38,7 +38,7 @@ end
 
 
 
-
+--// Bridge
 Bridge.on_going_requests = {}
 
 function Bridge:Send(data)
@@ -143,7 +143,12 @@ function Bridge:Loadstring(chunk, chunk_name)
 	module:Destroy()
 	return nil, "function does not match"
 end
+--\\
 
+
+
+
+--// Executor
 function Executor.getgenv()
 	return Executor
 end
@@ -174,6 +179,7 @@ function Executor.loadstring(chunk, chunk_name)
 
 	return func
 end
+--\\
 
 
 client.MessageReceived:Connect(function(data)
@@ -201,7 +207,7 @@ client.MessageReceived:Connect(function(data)
 		if id then response["id"] = id end
 
 		if not data["source"] then
-			response["message"] = "missing source"
+			response["message"] = "Missing keys: source"
 			return Bridge:Send(response)
 		end
 
@@ -237,5 +243,3 @@ end
 Bridge:Send({
 	["action"] = "initialize",
 })
-
-print("worked")
