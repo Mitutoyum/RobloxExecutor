@@ -19,18 +19,16 @@ private:
 	Websocket& _server;
 public:
 	Client(DWORD PID, Websocket& server);
-	Result Initialize() const;
+	void Inject() const;
 
 	uintptr_t GetAddress() const;
 	HANDLE GetHandle() const;
 	DWORD GetProcessId() const;
-	Result GetInitScript() const;
+	std::string GetInitScript() const;
 
-	bool FocusWindow() const;
+	void FocusWindow() const;
 
-	Result Execute(const std::string& source) const;
-	Result Loadstring(const std::string& chunk, const std::string& chunk_name, const std::string& script_name) const;
-
+	void Execute(const std::string& source) const;
 };
 
 typedef std::vector<std::unique_ptr<Client>> Clients;

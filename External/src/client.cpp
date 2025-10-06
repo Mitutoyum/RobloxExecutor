@@ -40,18 +40,20 @@ DWORD Client::GetProcessId() const {
 	return _PID;
 }
 
-Result Client::GetInitScript() const {
-	Result result;
+std::string Client::GetInitScript() const {
 	std::string initscript;
 
 	HMODULE module = GetModule();
-	CHECK(module, "Failed to get module handle for initscript", result);
+	if (!module)
+		throw std::runtime_error("Failed to get module handle for initscript");
 
 	HRSRC resource = FindResource(module, MAKEINTRESOURCE(INIT), MAKEINTRESOURCE(LUA));
-	CHECK(resource, "Failed to find initscript", result);
+	if (!resource)
+		throw std::runtime_error("Failed to find initscript");
 
 	HGLOBAL data = LoadResource(module, resource);
-	CHECK(data, "Failed to load initscript", result);
+	if (!data)
+		throw std::runtime_error("Failed to load initscript");
 
 	DWORD size = SizeofResource(module, resource);
 	char* final_data = static_cast<char*>(LockResource(data));
@@ -59,60 +61,37 @@ Result Client::GetInitScript() const {
 	initscript.assign(final_data, size);
 	ReplaceString(initscript, "%PROCESS_ID%", std::to_string(_PID));
 
-	result.message = initscript;
-
-	return result;
+	return initscript;
 }
 
 
 
-Result Client::Initialize() const {
-	Result result;
-
+void Client::Inject() const {
 	auto Datamodel = std::make_unique<Instance>(GetDatamodel(_address, _handle), _handle);
-	CHECK(Datamodel->Self(), "Failed to get datamodel", result);
 
-	std::unique_ptr<Instance> VRNavigation;
-	std::unique_ptr<Instance> PlayerListManager;
+	auto VRNavigation = Datamodel->FindFirstChild("StarterPlayer")
+		->FindFirstChild("StarterPlayerScripts")
+		->FindFirstChild("PlayerModule")
+		->FindFirstChild("ControlModule")
+		->FindFirstChild("VRNavigation");
 
+	auto PlayerListManager = Datamodel->FindFirstChild("CoreGui")
+		->FindFirstChild("RobloxGui")
+		->FindFirstChild("Modules")
+		->FindFirstChild("PlayerList")
+		->FindFirstChild("PlayerListManager");
 
-	try {
-		VRNavigation = Datamodel->FindFirstChild("StarterPlayer")
-			->FindFirstChild("StarterPlayerScripts")
-			->FindFirstChild("PlayerModule")
-			->FindFirstChild("ControlModule")
-			->FindFirstChild("VRNavigation");
+	std::string initscript = GetInitScript();
+	std::string script = "script.Parent=nil;task.spawn(function()" + initscript + "\nend);while true do task.wait(9e9) end";
+	std::string bytecode = Compile(script);
 
-		PlayerListManager = Datamodel->FindFirstChild("CoreGui")
-			->FindFirstChild("RobloxGui")
-			->FindFirstChild("Modules")
-			->FindFirstChild("PlayerList")
-			->FindFirstChild("PlayerListManager");
-	}
-	catch (const std::exception& exception) {
-		result.success = false;
-		result.message = std::string(exception.what());
-		return result;
-	}
+	VRNavigation->UnlockModule();
+	VRNavigation->SetBytecode(bytecode);
+	PlayerListManager->SpoofWith(VRNavigation->Self());
 
-	Result initscript = GetInitScript();
-	CHECK(initscript.success, initscript.message, result);
+	FocusWindow();
 
-	std::string script = "script.Parent=nil;task.spawn(function()" + initscript.message + "\nend);while true do task.wait(9e9) end";
-	Result compile_result = Compile(script);
-	CHECK(compile_result.success, compile_result.message, result);
-
-	CHECK(VRNavigation->UnlockModule(), "Failed to unlock module", result);
-
-	CHECK(VRNavigation->SetBytecode(compile_result.message), "Failed to set bytecode", result);
-
-	CHECK(PlayerListManager->SpoofWith(VRNavigation->Self()), "Failed to spoof instance", result);
-
-	Write<uintptr_t>(_address + 0x607cf20, 1, _handle); // enable websocket client creation, important for communication
-
-
-	CHECK(FocusWindow(), "Failed to focus window", result);
-
+	Write<uintptr_t>(_address + Offsets::FFlags::WebSocketServiceEnableClientCreation, 1, _handle); // enable websocket client creation, important for communication
 
 	INPUT inputs[2] = {};
 
@@ -126,70 +105,32 @@ Result Client::Initialize() const {
 	inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
 
 	UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
-	CHECK(uSent == ARRAYSIZE(inputs), "Failed to send inputs", result);
+	if (uSent != ARRAYSIZE(inputs))
+		throw std::runtime_error("Failed to send inputs");
 
 	Sleep(500);
 
-	CHECK(PlayerListManager->SpoofWith(PlayerListManager->Self()), "Failed to unspoof instance", result);
-
-	result.success = true;
-
-	return result;
+	PlayerListManager->SpoofWith(PlayerListManager->Self());
 }
 
-bool Client::FocusWindow() const {
-	HWND ClientHWND = GetWindowFromProcessId(_PID);
+void Client::FocusWindow() const {
+	HWND client_hwnd = GetWindowFromProcessId(_PID);
 
-	if (!ClientHWND) return false;
+	if (!client_hwnd)
+		throw std::runtime_error("Failed to focus window");
 
-	return SetForegroundWindow(ClientHWND);
+	SetForegroundWindow(client_hwnd);
 
 }
 
-Result Client::Execute(const std::string& source) const {
-	Result result;
+void Client::Execute(const std::string& source) const {
 	json request;
 
 	request["action"] = "execute";
 	request["source"] = source;
 
 	json response = _server.SendAndReceive(request, _PID);
-	result.success = response["success"];
 
-	if (!result.success) result.message = response["message"];
-
-	return result;
-}
-
-Result Client::Loadstring(const std::string& chunk, const std::string& chunk_name, const std::string& script_name) const {
-	Result result;
-
-	auto Datamodel = std::make_unique<Instance>(GetDatamodel(_address, _handle), _handle);
-	CHECK(Datamodel->Self(), "Failed to get datamodel", result);
-
-	std::unique_ptr<Instance> Scripts;
-
-	try {
-		Scripts = Datamodel->FindFirstChildOfClass("RobloxReplicatedStorage")
-			->FindFirstChild("Executor")
-			->FindFirstChild("Scripts");
-	}
-	catch (const std::exception& exception) {
-		result.success = false;
-		result.message = std::string(exception.what());
-		return result;
-	}
-
-	auto Script = Scripts->FindFirstChild(script_name, false);
-	CHECK(Script, "Failed to find script " + script_name, result);
-
-	Result compile_result = Compile("local function " + chunk_name + "(...)do setmetatable(getgenv and getgenv()or{},{__newindex=function(t,i,v)rawset(t,i,v)getfenv()[i]=v;end})end;" + chunk + "\nend;return " + chunk_name);
-
-	CHECK(Script->UnlockModule(), "Failed to unlock module", result);
-
-	CHECK(Script->SetBytecode(compile_result.message), "Failed to set bytecode", result);
-
-	result.success = true;
-
-	return result;
+	if (!response["success"])
+		throw std::runtime_error(response["message"]);
 }
