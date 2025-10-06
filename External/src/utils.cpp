@@ -51,17 +51,6 @@ Result Compile(const std::string& source)
     return result;
 }
 
-bool IsCompilable(const std::string& source) {
-    BytecodeEncoder encoder{};
-    const std::string bytecode = Luau::compile(source, {}, {}, &encoder);
-
-    if (bytecode[0] == '\0') return false;
-    
-    return true;
-}
-
-
-
 void ReplaceString(std::string& data, const std::string_view replace, const std::string_view replacement) {
     size_t pos = data.find(replace);
 
