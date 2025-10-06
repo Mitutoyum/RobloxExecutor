@@ -1,5 +1,7 @@
 #include <Windows.h>
 #include <string>
+#include <stdexcept>
+#include <iostream>
 
 #include "executor/utils.h"
 #include "executor/process.h"
@@ -10,12 +12,11 @@
 #include "Luau/BytecodeBuilder.h"
 #include "Luau/BytecodeUtils.h"
 
-#include <iostream>
-
 uintptr_t GetDatamodel(uintptr_t address, HANDLE handle) {
     uintptr_t FakeDatamodel = Read<uintptr_t>(address + Offsets::FakeDataModel::Pointer, handle);
 
-    if (!FakeDatamodel) return 0;
+    if (!FakeDatamodel)
+        throw std::runtime_error("Failed to get datamodel");
 
     return Read<uintptr_t>(FakeDatamodel + Offsets::FakeDataModel::RealDataModel, handle);;
 }
@@ -30,9 +31,8 @@ HMODULE GetModule() {
 }
 
 
-Result Compile(const std::string& source)
+std::string Compile(const std::string& source)
 {
-    Result result;
     BytecodeEncoder encoder{};
     const std::string bytecode = Luau::compile(source, {}, {}, &encoder);
 
@@ -40,23 +40,19 @@ Result Compile(const std::string& source)
         std::string error_message = bytecode;
         error_message.erase(std::remove(error_message.begin(), error_message.end(), '\0'), error_message.end());
 
-        result.success = false;
-        result.message = error_message;
-        return result;
+        throw std::runtime_error(error_message);
     }
 
-    result.success = true;
-    result.message = Bytecode::sign_bytecode(bytecode);
-
-    return result;
+    return Bytecode::sign_bytecode(bytecode);
 }
 
 void ReplaceString(std::string& data, const std::string_view replace, const std::string_view replacement) {
     size_t pos = data.find(replace);
 
-    if (pos != std::string::npos) {
-        data.replace(pos, replace.length(), replacement);
-    }
+    if (pos == std::string::npos)
+        throw std::runtime_error("Failed to find " + std::string(replace));
+
+    data.replace(pos, replace.length(), replacement);
 }
 
 void REPLPrint(const std::string& message) {
@@ -83,8 +79,7 @@ std::string GenerateGUID() {
 }
 
 
-Result CheckRequiredKeys(const json& data, const std::vector<std::string>& required_keys) {
-    Result result;
+void CheckRequiredKeys(const json& data, const std::vector<std::string>& required_keys) {
     std::vector<std::string> missing_keys;
 
     for (const auto& key : required_keys) {
@@ -94,18 +89,12 @@ Result CheckRequiredKeys(const json& data, const std::vector<std::string>& requi
     }
 
     if (!missing_keys.empty()) {
-        std::string message = "Missing required keys: ";
+        std::string message = "Missing keys: ";
         for (size_t i = 0; i < missing_keys.size(); ++i) {
             message += missing_keys[i];
             if (i < missing_keys.size() - 1)
                 message += ", ";
         }
-
-        result.success = false;
-        result.message = message;
-        return result;
+        throw std::runtime_error(message);
     }
-
-    result.success = true;
-    return result;
 }
