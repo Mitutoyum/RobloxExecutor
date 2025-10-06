@@ -21,7 +21,7 @@ struct Result {
 uintptr_t GetDatamodel(uintptr_t address, HANDLE handle);
 HMODULE GetModule();
 
-Result Compile(const std::string& source);
+std::string Compile(const std::string& source);
 
 void ReplaceString(std::string& data, const std::string_view replace, const std::string_view replacement);
 
@@ -29,5 +29,5 @@ void REPLPrint(const std::string& message);
 
 std::string GenerateGUID();
 
-Result CheckRequiredKeys(const json& data, const std::vector<std::string>& keys);
+void CheckRequiredKeys(const json& data, const std::vector<std::string>& keys);
 
