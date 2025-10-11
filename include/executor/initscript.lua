@@ -41,6 +41,21 @@ function Utils:MergeTable(t1, t2)
 	return t1
 end
 
+function Utils:HttpGet(url, return_raw)
+	assert(type(url) == "string", "invalid argument #1 to 'HttpGet' (string expected, got " .. type(url) .. ") ", 2)
+	return_raw = return_raw or true
+	local response = Executor.request({
+		Url = url,
+		Method = "GET",
+	})
+
+	if return_raw then
+		return response.Body
+	end
+
+	return HttpService:JSONDecode(response.Body)
+end
+
 
 
 --// Bridge
@@ -205,20 +220,25 @@ function Executor.request(options)
 	return response
 end
 
-function Executor.HttpGet(url, return_raw)
-	assert(type(url) == "string", "invalid argument #1 to 'HttpGet' (string expected, got " .. type(url) .. ") ", 2)
-	return_raw = return_raw or true
-	local response = Executor.request({
-		Url = url,
-		Method = "GET",
-	})
 
-	if return_raw then
-		return response.Body
-	end
+Executor.game = {}
+setmetatable(Executor.game, {
+	__index = function(self, index)
+		if index == "HttpGet" or index == "HttpGetAsync" then
+			return function(self, ...)
+				return Utils:HttpGet(...)
+			end
+		end
 
-	return HttpService:JSONDecode(response.Body)
-end
+		return game[index]
+	end,
+
+	__tostring = function(self)
+		return game.Name
+	end,
+
+	__metatable = getmetatable(game)
+})
 
 function Executor.loadstring(chunk, chunk_name)
 	assert(type(chunk) == "string", "invalid argument #1 to 'loadstring' (string expected, got " .. type(chunk) .. ") ", 2)
@@ -281,9 +301,11 @@ client.MessageReceived:Connect(function(data)
 			return Bridge:Send(response)
 		end
 
-		setfenv(func, merge(getfenv(func), Executor))
+		setfenv(func, Utils:MergeTable(getfenv(func), Executor))
 
-		task.spawn(func) -- execute
+		task.spawn(func)
+		
+		print("True")
 
 		response["success"] = true
 		return Bridge:Send(response)

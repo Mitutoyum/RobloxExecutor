@@ -143,7 +143,6 @@ Websocket::Websocket(std::string host, int port) : _host(host), _port(port), _se
                             response["response"]["status_code"] = result->status;
                             response["response"]["status_message"] = result->reason;
                             
-                            std::cout << response["response"]["success"];
 
                             json json_headers;
 
