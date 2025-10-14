@@ -13,8 +13,10 @@ ObjectContainer.Parent = ExecutorContainer
 
 
 
-local PROCESS_ID = %PROCESS_ID%
+
+local PROCESS_ID, VERSION = %PROCESS_ID%, %VERSION%
 local Executor, Bridge, Utils = {}, {}, {}
+local user_agent = "Executor/"..VERSION
 local client = WebSocketService:CreateClient("ws://localhost:9001")
 
 
@@ -210,10 +212,7 @@ function Executor.request(options)
 	end
 	options.Headers = options.Headers or {}
 	if options.Headers then assert(type(options.Headers) == "table", "invalid option 'Headers' for argument #1 to 'request' (table expected, got " .. type(options.Url) .. ") ", 2) end
-	options.Headers["User-Agent"] = options.Headers["User-Agent"] or "Executor"
-	if options.Headers["User-Agent"] then
-		assert(type(options.Headers["User-Agent"]) == "string", "invalid option 'User-Agent' for argument #1 to 'request.Header' (string expected, got " .. type(options.Url) .. ") ", 2)
-	end
+	options.Headers["User-Agent"] = options.Headers["User-Agent"] or useragent
 
 	local response = Bridge:Request(options)
 

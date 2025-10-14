@@ -60,6 +60,7 @@ std::string Client::GetInitScript() const {
 
 	initscript.assign(final_data, size);
 	ReplaceString(initscript, "%PROCESS_ID%", std::to_string(_PID));
+	ReplaceString(initscript, "%VERSION%", "\"" + version + "\"");
 
 	return initscript;
 }

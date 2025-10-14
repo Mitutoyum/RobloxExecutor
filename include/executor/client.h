@@ -17,6 +17,7 @@ private:
 	uintptr_t _address;
 	
 	Websocket& _server;
+	const std::string& version = "1.0.0";
 public:
 	Client(DWORD PID, Websocket& server);
 	void Inject() const;
