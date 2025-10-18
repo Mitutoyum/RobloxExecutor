@@ -9,45 +9,58 @@ uintptr_t GetBaseAddress(DWORD PID);
 HWND GetWindowFromProcessId(DWORD PID);
 void EnableVirtualTerminal();
 
-template <typename T>
-T Read(uintptr_t address, HANDLE handle, uint64_t size = NULL, bool convert = true) {
-	T buffer;
-    
-	ReadProcessMemory(handle, reinterpret_cast<LPCVOID>(address), &buffer, sizeof(buffer), nullptr);
 
-	return buffer;
-}
+class Process {
+private:
+    DWORD _PID;
+    HANDLE _handle;
+    uintptr_t _address;
+public:
+    Process(DWORD PID);
 
-template <>
-inline std::string Read(uintptr_t address, HANDLE handle, uint64_t size, bool convert) {
+    uintptr_t GetAddress() const;
+    HANDLE GetHandle() const;
+    DWORD GetProcessId() const;
+    void FocusWindow() const;
 
-    uint64_t length = size ? size : Read<uint64_t>(address + 0x10, handle);
+    template <typename T>
+    T Read(uintptr_t address, uint64_t size = NULL, bool convert = true) const {
+        T buffer;
 
-    if (convert)
-    address = (length >= 16) ? Read<uintptr_t>(address, handle) : address;
+        ReadProcessMemory(_handle, reinterpret_cast<LPCVOID>(address), &buffer, sizeof(buffer), nullptr);
 
+        return buffer;
+    }
 
-    std::string buffer;
-    buffer.resize(length);
+    template <>
+    inline std::string Read(uintptr_t address, uint64_t size, bool convert) const {
+        uint64_t length = size ? size : Read<uint64_t>(address + 0x10);
 
-    ReadProcessMemory(handle, reinterpret_cast<LPCVOID>(address), buffer.data(), length, nullptr);
+        if (convert)
+            address = (length >= 16) ? Read<uintptr_t>(address) : address;
 
-    return buffer;
-}
+        std::string buffer;
+        buffer.resize(length);
 
-template <typename T>
-bool Write(uintptr_t address, T buffer, HANDLE handle, uintptr_t size_ptr = NULL) {
-    return WriteProcessMemory(handle, reinterpret_cast<LPVOID>(address), &buffer, sizeof(buffer), nullptr);
-}
+        ReadProcessMemory(_handle, reinterpret_cast<LPCVOID>(address), buffer.data(), length, nullptr);
 
-template <>
-inline bool Write<std::string>(uintptr_t address, std::string buffer, HANDLE handle, uintptr_t size_ptr) {
-    size_ptr = size_ptr ? size_ptr : address + 0x10;
+        return buffer;
+    }
 
-    address = (Read<uint64_t>(size_ptr, handle) >= 16) ? Read<uintptr_t>(address, handle) : address;
+    template <typename T>
+    bool Write(uintptr_t address, T buffer, uintptr_t size_ptr = NULL) const {
+        return WriteProcessMemory(_handle, reinterpret_cast<LPVOID>(address), &buffer, sizeof(buffer), nullptr);
+    }
 
-    size_t bufferSize = buffer.size();
+    template <>
+    inline bool Write<std::string>(uintptr_t address, std::string buffer, uintptr_t size_ptr) const {
+        size_ptr = size_ptr ? size_ptr : address + 0x10;
 
-    return WriteProcessMemory(handle, reinterpret_cast<LPVOID>(address), buffer.c_str(), bufferSize, nullptr) &&
-           WriteProcessMemory(handle, reinterpret_cast<LPVOID>(size_ptr), &bufferSize, sizeof(bufferSize), nullptr);
-}
+        address = (Read<uint64_t>(size_ptr) >= 16) ? Read<uintptr_t>(address) : address;
+
+        size_t bufferSize = buffer.size();
+
+        return WriteProcessMemory(_handle, reinterpret_cast<LPVOID>(address), buffer.c_str(), bufferSize, nullptr) &&
+            WriteProcessMemory(_handle, reinterpret_cast<LPVOID>(size_ptr), &bufferSize, sizeof(bufferSize), nullptr);
+    }
+};

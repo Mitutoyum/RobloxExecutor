@@ -1,6 +1,8 @@
 #include <Windows.h>
 #include <TlHelp32.h>
 #include <vector>
+#include <stdexcept>
+#include <iostream>
 
 #include "executor/process.h"
 
@@ -27,7 +29,6 @@ std::vector<DWORD> GetProcessIds(const wchar_t* name) {
 
 	CloseHandle(snapshot);
 	return PIDs;
-
 }
 
 uintptr_t GetBaseAddress(DWORD PID) {
@@ -80,4 +81,36 @@ void EnableVirtualTerminal() {
 
 	mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
 	SetConsoleMode(handle, mode);
+}
+
+
+Process::Process(DWORD PID) : _PID(PID), _handle(OpenProcess(PROCESS_ALL_ACCESS, NULL, PID)), _address(GetBaseAddress(PID)) {
+	if (!_handle) {
+		throw std::runtime_error("Process(): failed to open of process " + std::to_string(PID) + ", is the PID valid?");
+	}
+
+	if (!_address) {
+		throw std::runtime_error("Process(): failed to get base address of process " + PID);
+	}
+}
+
+uintptr_t Process::GetAddress() const {
+	return _address;
+}
+
+HANDLE Process::GetHandle() const {
+	return _handle;
+}
+
+DWORD Process::GetProcessId() const {
+	return _PID;
+}
+
+void Process::FocusWindow() const {
+	HWND client_hwnd = GetWindowFromProcessId(_PID);
+
+	if (!client_hwnd)
+		throw std::runtime_error("FocusWindow(): failed to get window");
+
+	SetForegroundWindow(client_hwnd);
 }

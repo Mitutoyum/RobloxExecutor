@@ -3,6 +3,7 @@
 #include <future>
 #include <regex>
 
+#include "ixwebsocket/IXBase64.h"
 #include "httplib/httplib.h"
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
@@ -29,8 +30,7 @@ Websocket::Websocket(std::string host, int port) : _host(host), _port(port), _se
                         return pair.second.get() == &websocket;
                     });
 
-                if (it != _connections.end())
-                {
+                if (it != _connections.end()) {
                     _connections.erase(it);
                 }
             } else if (message->type == ix::WebSocketMessageType::Message) {
@@ -139,7 +139,7 @@ Websocket::Websocket(std::string host, int port) : _host(host), _port(port), _se
                         else throw std::runtime_error("Unsupported HTTP Method");
 
                         if (result) {
-                            response["response"]["success"] = 200 <= result->status <= 299;
+                            response["response"]["success"] = (result->status >= 200 && result->status <= 299);
                             response["response"]["status_code"] = result->status;
                             response["response"]["status_message"] = result->reason;
                             
@@ -177,12 +177,12 @@ Websocket::Websocket(std::string host, int port) : _host(host), _port(port), _se
                         const std::string& script_name = data["script_name"];
 
                         for (const auto& client : _clients) {
-                            if (client->GetProcessId() == PID) {
+                            if (client->GetProcess()->GetProcessId() == PID) {
 
-                                uintptr_t address = client->GetAddress();
-                                HANDLE handle = client->GetHandle();
+                                uintptr_t address = client->GetProcess()->GetAddress();
+                                HANDLE handle = client->GetProcess()->GetHandle();
 
-                                auto Datamodel = std::make_unique<Instance>(GetDatamodel(address, handle), handle);
+                                auto Datamodel = Instance::New(GetDatamodel(client->GetProcess()), client->GetProcess());
 
                                 auto Script = Datamodel->FindFirstChildOfClass("RobloxReplicatedStorage")
                                     ->FindFirstChild("Executor")
@@ -194,8 +194,43 @@ Websocket::Websocket(std::string host, int port) : _host(host), _port(port), _se
                                 Script->UnlockModule();
                                 Script->SetBytecode(bytecode);
                                 response["success"] = true;
+                                break;
                             }
                         }
+                    }
+                    catch (const std::exception& exception) {
+                        response["message"] = exception.what();
+                    }
+
+                    return Send(response, PID);
+                }
+                else if (action == "get_script_bytecode") {
+                    json response;
+
+                    response["type"] = "response";
+                    response["success"] = false;
+                    if (!id.empty()) response["id"] = id;
+
+                    try {
+
+                        CheckRequiredKeys(data, { "path" });
+
+                        const std::string& path = data["path"];
+
+
+                        for (const auto& client : _clients) {
+                            if (client->GetProcess()->GetProcessId() == PID) {
+                                auto datamodel = Instance::New(GetDatamodel(client->GetProcess()), client->GetProcess());
+                                auto child = Instance::FindFirstChildFromPath(datamodel.get(), path);
+
+                                response["bytecode"] = macaron::Base64::Encode(child->GetBytecode());
+                                response["success"] = true;
+                                break;
+                            }
+                        }
+
+
+
                     }
                     catch (const std::exception& exception) {
                         response["message"] = exception.what();
@@ -246,21 +281,19 @@ void Websocket::Send(const json& data, DWORD PID) const {
     try {
         std::string encoded = data.dump();
         Send(encoded, PID);
-    } catch (const json::exception& exeception) {
-        return;
-    }
+    } catch (const json::exception& exeception) {}
 
 }
 
 json Websocket::SendAndReceive(json& data, DWORD PID, int timeout) {
-    std::string GUID = GenerateGUID();
+    std::string id = GenerateGUID();
 
-    data["id"] = GUID;
+    data["id"] = id;
 
     auto promise = std::make_unique<std::promise<json>>();
     auto future = promise->get_future();
 
-    _on_going_requests.emplace(GUID, std::move(promise));
+    _on_going_requests.emplace(id, std::move(promise));
 
 
     Send(data, PID);
@@ -270,20 +303,24 @@ json Websocket::SendAndReceive(json& data, DWORD PID, int timeout) {
 
         json response = future.get();
 
-        _on_going_requests.erase(GUID);
+        _on_going_requests.erase(id);
 
         return response;
     }
     else
     {
-        _on_going_requests.erase(GUID);
+        _on_going_requests.erase(id);
 
-        throw std::runtime_error("timeout waiting for response");
+        throw std::runtime_error("timeout waiting for response " + id);
     }
 }
 
 int Websocket::GetPort() const {
 	return _port;
+}
+
+const std::string& Websocket::GetHost() const {
+    return _host;
 }
 
 const Clients& Websocket::GetClients() const {
@@ -304,5 +341,30 @@ std::shared_ptr<ix::WebSocket> Websocket::GetConnection(DWORD PID) const {
 }
 
 void Websocket::AddClient(std::unique_ptr<Client> client) {
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    HANDLE handle = client->GetProcess()->GetHandle();
+    DWORD PID = client->GetProcess()->GetProcessId();
+
     _clients.push_back(std::move(client));
+
+    std::thread([this, PID, handle]() {
+        WaitForSingleObject(handle, INFINITE);
+        RemoveClient(PID);
+    }).detach();
+}
+
+void Websocket::RemoveClient(DWORD PID) {
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    if (auto it = _connections.find(PID); it != _connections.end()) {
+        if (it->second) it->second->close();
+        _connections.erase(it);
+    }
+
+    auto it = std::remove_if(_clients.begin(), _clients.end(),
+        [&](const std::unique_ptr<Client>& client) {
+            return client && client->GetProcess()->GetProcessId() == PID;
+        });
+    _clients.erase(it, _clients.end());
 }

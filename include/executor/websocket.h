@@ -21,8 +21,8 @@ private:
 	Connections _connections;
 	Clients _clients;
 
-	std::string _host;
-	int _port;
+	const std::string _host;
+	const int _port;
 
 	std::unordered_map<std::string, std::unique_ptr<std::promise<json>>> _on_going_requests;
 	std::mutex _mutex;
@@ -41,9 +41,11 @@ public:
 
 
 	int GetPort() const;
+	const std::string& GetHost() const;
 	const Clients& GetClients() const;
 	const Connections& GetConnections() const;
 	std::shared_ptr<ix::WebSocket> GetConnection(DWORD PID) const;
 
 	void AddClient(std::unique_ptr<Client> client);
+	void RemoveClient(DWORD PID);
 };

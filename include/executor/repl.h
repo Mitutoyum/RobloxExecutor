@@ -6,9 +6,9 @@
 
 class REPL {
 private:
-	Websocket& _server;
+	Websocket* _server;
 public:
-	REPL(Websocket& server);
+	REPL(Websocket* server);
 
 	void Run();
 };

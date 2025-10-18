@@ -12,13 +12,10 @@
 #include "Luau/BytecodeBuilder.h"
 #include "Luau/BytecodeUtils.h"
 
-uintptr_t GetDatamodel(uintptr_t address, HANDLE handle) {
-    uintptr_t FakeDatamodel = Read<uintptr_t>(address + Offsets::FakeDataModel::Pointer, handle);
+uintptr_t GetDatamodel(const Process* process) {
+    uintptr_t FakeDatamodel = process->Read<uintptr_t>(process->GetAddress() + Offsets::FakeDataModel::Pointer);
 
-    if (!FakeDatamodel)
-        throw std::runtime_error("Failed to get datamodel");
-
-    return Read<uintptr_t>(FakeDatamodel + Offsets::FakeDataModel::RealDataModel, handle);;
+    return process->Read<uintptr_t>(FakeDatamodel + Offsets::FakeDataModel::RealDataModel);
 }
 
 HMODULE GetModule() {
@@ -29,7 +26,6 @@ HMODULE GetModule() {
         &hModule);
     return hModule;
 }
-
 
 std::string Compile(const std::string& source)
 {

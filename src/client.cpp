@@ -17,27 +17,10 @@ using nlohmann::json;
 #include "executor/websocket.h"
 
 
-Client::Client(DWORD PID, Websocket& server) : _PID(PID), _server(server), _handle(OpenProcess(PROCESS_ALL_ACCESS, NULL, PID)), _address(GetBaseAddress(PID)) {
-	if (!_handle) {
-		throw std::runtime_error("Failed to open of process " + std::to_string(PID) + ", is the PID valid?");
-	}
+Client::Client(DWORD PID, Websocket* server) : _process(PID), _server(server) {}
 
-	if (!_address) {
-		throw std::runtime_error("Failed to get base address of process " + PID);
-	}
-
-}
-
-uintptr_t Client::GetAddress() const {
-	return _address;
-}
-
-HANDLE Client::GetHandle() const {
-	return _handle;
-}
-
-DWORD Client::GetProcessId() const {
-	return _PID;
+const Process* Client::GetProcess() const {
+	return &_process;
 }
 
 std::string Client::GetInitScript() const {
@@ -59,28 +42,16 @@ std::string Client::GetInitScript() const {
 	char* final_data = static_cast<char*>(LockResource(data));
 
 	initscript.assign(final_data, size);
-	ReplaceString(initscript, "%PROCESS_ID%", std::to_string(_PID));
-	ReplaceString(initscript, "%VERSION%", "\"" + version + "\"");
+	ReplaceString(initscript, "%PROCESS_ID%", std::to_string(_process.GetProcessId()));
+	ReplaceString(initscript, "%VERSION%", "\"" + std::string(version) + "\"");
 
 	return initscript;
 }
 
-
-
 void Client::Inject() const {
-	auto Datamodel = std::make_unique<Instance>(GetDatamodel(_address, _handle), _handle);
-
-	auto VRNavigation = Datamodel->FindFirstChild("StarterPlayer")
-		->FindFirstChild("StarterPlayerScripts")
-		->FindFirstChild("PlayerModule")
-		->FindFirstChild("ControlModule")
-		->FindFirstChild("VRNavigation");
-
-	auto PlayerListManager = Datamodel->FindFirstChild("CoreGui")
-		->FindFirstChild("RobloxGui")
-		->FindFirstChild("Modules")
-		->FindFirstChild("PlayerList")
-		->FindFirstChild("PlayerListManager");
+	auto Datamodel = Instance::New(GetDatamodel(GetProcess()), GetProcess());
+	auto VRNavigation = Instance::FindFirstChildFromPath(Datamodel.get(), "StarterPlayer.StarterPlayerScripts.PlayerModule.ControlModule.VRNavigation");
+	auto PlayerListManager = Instance::FindFirstChildFromPath(Datamodel.get(), "CoreGui.RobloxGui.Modules.PlayerList.PlayerListManager");
 
 	std::string initscript = GetInitScript();
 	std::string script = "script.Parent=nil;task.spawn(function()" + initscript + "\nend);while true do task.wait(9e9) end";
@@ -90,9 +61,9 @@ void Client::Inject() const {
 	VRNavigation->SetBytecode(bytecode);
 	PlayerListManager->SpoofWith(VRNavigation->Self());
 
-	FocusWindow();
+	_process.Write<uintptr_t>(_process.GetAddress() + Offsets::FFlags::WebSocketServiceEnableClientCreation, 1); // enable websocket client creation, important for communication
 
-	Write<uintptr_t>(_address + Offsets::FFlags::WebSocketServiceEnableClientCreation, 1, _handle); // enable websocket client creation, important for communication
+	_process.FocusWindow();
 
 	INPUT inputs[2] = {};
 
@@ -107,21 +78,12 @@ void Client::Inject() const {
 
 	UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
 	if (uSent != ARRAYSIZE(inputs))
-		throw std::runtime_error("Failed to send inputs");
+		throw std::runtime_error("Inject(): failed to send inputs");
 
-	Sleep(500);
+	std::this_thread::sleep_for(std::chrono::microseconds(250000));
+
 
 	PlayerListManager->SpoofWith(PlayerListManager->Self());
-}
-
-void Client::FocusWindow() const {
-	HWND client_hwnd = GetWindowFromProcessId(_PID);
-
-	if (!client_hwnd)
-		throw std::runtime_error("Failed to focus window");
-
-	SetForegroundWindow(client_hwnd);
-
 }
 
 void Client::Execute(const std::string& source) const {
@@ -130,7 +92,7 @@ void Client::Execute(const std::string& source) const {
 	request["action"] = "execute";
 	request["source"] = source;
 
-	json response = _server.SendAndReceive(request, _PID);
+	json response = _server->SendAndReceive(request, _process.GetProcessId());
 
 	if (!response["success"])
 		throw std::runtime_error(response["message"]);

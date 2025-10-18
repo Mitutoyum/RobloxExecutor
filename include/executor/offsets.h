@@ -5,12 +5,12 @@
 namespace Offsets {
 
     namespace FakeDataModel {
-        inline constexpr uintptr_t Pointer = 0x720a138;
+        inline constexpr uintptr_t Pointer = 0x7268a88;
         inline constexpr uintptr_t RealDataModel = 0x1c0;
     }
 
     namespace DataModel {
-        inline constexpr uintptr_t GameLoaded = 0x680;
+        inline constexpr uintptr_t GameLoaded = 0x640;
     }
 
     namespace Instance {
@@ -21,6 +21,8 @@ namespace Offsets {
         inline constexpr uintptr_t Name = 0x80;
         inline constexpr uintptr_t Parent = 0x50;
     }
+
+
 
     namespace Player {
         inline constexpr uintptr_t LocalPlayer = 0x120;

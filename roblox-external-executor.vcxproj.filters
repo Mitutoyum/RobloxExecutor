@@ -15,27 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="include\blake3\blake3.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="include\blake3\blake3_avx2.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="include\blake3\blake3_avx512.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="include\blake3\blake3_dispatch.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="include\blake3\blake3_portable.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="include\blake3\blake3_sse2.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="include\blake3\blake3_sse41.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

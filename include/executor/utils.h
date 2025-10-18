@@ -6,28 +6,16 @@
 #include "nlohmann/json.hpp"
 using nlohmann::json;
 
-#define CHECK(condition, error_message, result) \
-	if (!(condition)) { \
-		result.success = false; \
-		result.message = error_message; \
-		return result; \
-	}
+#include "executor/process.h"
 
-struct Result {
-    bool success;
-    std::string message;
-};
-
-uintptr_t GetDatamodel(uintptr_t address, HANDLE handle);
+uintptr_t GetDatamodel(const Process* process);
 HMODULE GetModule();
 
 std::string Compile(const std::string& source);
 
 void ReplaceString(std::string& data, const std::string_view replace, const std::string_view replacement);
-
 void REPLPrint(const std::string& message);
 
 std::string GenerateGUID();
 
 void CheckRequiredKeys(const json& data, const std::vector<std::string>& keys);
-

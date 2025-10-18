@@ -6,29 +6,24 @@
 #include <memory>
 
 #include "executor/utils.h"
+#include "executor/process.h"
 
 
 class Websocket;
 
 class Client {
 private:
-	DWORD _PID;
-	HANDLE _handle;
-	uintptr_t _address;
-	
-	Websocket& _server;
-	const std::string& version = "1.0.0";
-public:
-	Client(DWORD PID, Websocket& server);
-	void Inject() const;
+	Process _process;
+	Websocket* _server;
 
-	uintptr_t GetAddress() const;
-	HANDLE GetHandle() const;
-	DWORD GetProcessId() const;
+	 static constexpr std::string_view version = "1.0.0";
+public:
+	Client(DWORD PID, Websocket* server);
+
+	const Process* GetProcess() const;
 	std::string GetInitScript() const;
 
-	void FocusWindow() const;
-
+	void Inject() const;
 	void Execute(const std::string& source) const;
 };
 

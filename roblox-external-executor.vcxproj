@@ -128,17 +128,11 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ProjectDir)\libs</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);Ws2_32.lib;ixwebsocket.lib;libcrypto_static.lib;libssl_static.lib;Luau.Compiler.lib;Luau.Ast.lib;zstd_static.lib</AdditionalDependencies>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);Ws2_32.lib;ixwebsocket.lib;libcrypto_static.lib;libssl_static.lib;Luau.Compiler.lib;Luau.Ast.lib;zstd_static.lib;blake3.lib</AdditionalDependencies>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="include\blake3\blake3.c" />
-    <ClCompile Include="include\blake3\blake3_avx2.c" />
-    <ClCompile Include="include\blake3\blake3_avx512.c" />
-    <ClCompile Include="include\blake3\blake3_dispatch.c" />
-    <ClCompile Include="include\blake3\blake3_portable.c" />
-    <ClCompile Include="include\blake3\blake3_sse2.c" />
-    <ClCompile Include="include\blake3\blake3_sse41.c" />
     <ClCompile Include="include\openssl\applink.c" />
     <ClCompile Include="src\client.cpp" />
     <ClCompile Include="src\instance.cpp" />

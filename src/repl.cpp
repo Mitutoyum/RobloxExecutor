@@ -13,7 +13,7 @@
 #include "executor/websocket.h"
 
 
-REPL::REPL(Websocket& server) : _server(server) {}
+REPL::REPL(Websocket* server) : _server(server) {}
 
 
 void REPL::Run() {
@@ -38,7 +38,7 @@ void REPL::Run() {
 				try {
 					auto client = std::make_unique<Client>(_PID, _server);
 					client->Inject();
-					_server.AddClient(std::move(client));
+					_server->AddClient(std::move(client));
 					REPLPrint("[*] Injected client " + std::to_string(_PID) + " successfully");
 
 				}
@@ -59,7 +59,13 @@ void REPL::Run() {
 				}
 
 				for (const auto& _PID : PIDs) {
-					initialize_client(_PID);
+					auto it = std::find_if(_server->GetClients().begin(), _server->GetClients().end(),
+						[_PID](const auto& client) {
+							return client->GetProcess()->GetProcessId() == _PID;
+						});
+
+					if (it == _server->GetClients().end())
+						initialize_client(_PID);
 				}
 			}
 		}
@@ -95,23 +101,23 @@ void REPL::Run() {
 			DWORD PID;
 
 			if (iss >> PID) {
-				for (const auto& client : _server.GetClients()) {
-					if (client->GetProcessId() == PID) {
+				for (const auto& client : _server->GetClients()) {
+					if (client->GetProcess()->GetProcessId() == PID) {
 						try {
 							client->Execute(buffer.str());
-							REPLPrint("[*] Executed successfully for client " + PID);
+							REPLPrint("[*] Executed successfully for client " + std::to_string(PID));
 						}
 						catch (const std::exception& exception) {
-							REPLPrint(exception.what());
+							REPLPrint("[!] " + std::string(exception.what()));
 						}
 					}
 				}
 			}
 			else {
-				for (const auto& client : _server.GetClients()) {
+				for (const auto& client : _server->GetClients()) {
 					try {
 						client->Execute(buffer.str());
-						REPLPrint("[*] Executed successfully for client " + std::to_string(client->GetProcessId()));
+						REPLPrint("[*] Executed successfully for client " + std::to_string(client->GetProcess()->GetProcessId()));
 					}
 					catch (const std::exception& exception) {
 						REPLPrint("[!] " + std::string(exception.what()));

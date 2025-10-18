@@ -12,8 +12,6 @@ ObjectContainer.Name = "Objects"
 ObjectContainer.Parent = ExecutorContainer
 
 
-
-
 local PROCESS_ID, VERSION = %PROCESS_ID%, %VERSION%
 local Executor, Bridge, Utils = {}, {}, {}
 local user_agent = "Executor/"..VERSION
@@ -107,25 +105,20 @@ function Bridge:SendAndReceive(data, timeout)
     connection:Disconnect()
 	bindable_event:Destroy()
 
-	if not response_data then error("timeout waiting for response " .. id, 2) end
+	if not response_data then error("[Executor] timeout waiting for response " .. id, 2) end
 
     return response_data
 end
 
 function Bridge:IsCompilable(source)
-	local success, result = pcall(function()
-		return self:SendAndReceive({
-			["action"] = "is_compilable",
-			["source"] = source
-		})
-	end)
+	
+	local response = self:SendAndReceive({
+		["action"] = "is_compilable",
+		["source"] = source
+	})
 
-	if not success then 
-		return false, result
-	end
-
-	if not result["success"] then
-		return false, result["message"]
+	if not response["success"] then
+		return false, response["message"]
 	end
 
 	return true
@@ -134,21 +127,16 @@ end
 function Bridge:Loadstring(chunk, chunk_name)
 	local module = Utils:GetRandomModule()
 
-	local success, result = pcall(function()
-		return self:SendAndReceive({
-			["action"] = "loadstring",
-			["chunk"] = chunk,
-			["chunk_name"] = chunk_name,
-			["script_name"] = module.Name
-		})
-	end)
+	local response =self:SendAndReceive({
+		["action"] = "loadstring",
+		["chunk"] = chunk,
+		["chunk_name"] = chunk_name,
+		["script_name"] = module.Name
+	})
 
-	if not success then 
-		return nil, result
-	end
 
-	if not result["success"] then
-		return nil, result["message"]
+	if not response["success"] then
+		return nil, response["message"]
 	end
 
 	local func = require(module)
@@ -163,40 +151,66 @@ function Bridge:Loadstring(chunk, chunk_name)
 end
 
 function Bridge:Request(options)
-	local success, result = pcall(function()
-		return self:SendAndReceive({
-			["action"] = "request",
-			["url"] = options.Url,
-			["method"] = options.Method,
-			["headers"] = options.Headers,
-			["body"] = options.Body
-		})
-	end)
+	local response = self:SendAndReceive({
+		["action"] = "request",
+		["url"] = options.Url,
+		["method"] = options.Method,
+		["headers"] = options.Headers,
+		["body"] = options.Body
+	})
 
-	if not success then 
-		error(result, 3)
-	end
-
-	if not result["success"] then
-		error(result["message"], 3)
+	if not response["success"] then
+		error(response["message"], 3)
 	end
 
 	return {
-		Success = result["response"]["success"],
-		StatusCode = result["response"]["status_code"],
-		StatusMessage = result["response"]["status_message"],
-		Headers = result["response"]["headers"],
-		Body = result["response"]["body"]
+		Success = response["response"]["success"],
+		StatusCode = response["response"]["status_code"],
+		StatusMessage = response["response"]["status_message"],
+		Headers = response["response"]["headers"],
+		Body = response["response"]["body"]
 	}
 end
 --\\
 
 
 --// Executor
+Executor.base64 = {}
+
+function Executor.base64.encode(data)
+    local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    return ((data:gsub('.', function(x) 
+        local r,b='',x:byte()
+        for i=8,1,-1 do r=r..(b%2^i-b%2^(i-1)>0 and '1' or '0') end
+        return r;
+    end)..'0000'):gsub('%d%d%d?%d?%d?%d?', function(x)
+        if (#x < 6) then return '' end
+        local c=0
+        for i=1,6 do c=c+(x:sub(i,i)=='1' and 2^(6-i) or 0) end
+        return b:sub(c+1,c+1)
+    end)..({ '', '==', '=' })[#data%3+1])
+end
+ 
+function Executor.base64.decode(data)
+    local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    data = string.gsub(data, '[^'..b..'=]', '')
+    return (data:gsub('.', function(x)
+        if (x == '=') then return '' end
+        local r,f='',(b:find(x)-1)
+        for i=6,1,-1 do r=r..(f%2^i-f%2^(i-1)>0 and '1' or '0') end
+        return r;
+    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+        if (#x ~= 8) then return '' end
+        local c=0
+        for i=1,8 do c=c+(x:sub(i,i)=='1' and 2^(8-i) or 0) end
+        return string.char(c)
+    end))
+end
+
 function Executor.getgenv()
 	return Executor
 end
-
+ 
 function Executor.request(options)
 	assert(type(options) == "table", "invalid argument #1 to 'request' (table expected, got " .. type(options) .. ") ", 2)
 	assert(type(options.Url) == "string", "invalid option 'Url' for argument #1 to 'request' (string expected, got " .. type(options.Url) .. ") ", 2)
@@ -212,11 +226,9 @@ function Executor.request(options)
 	end
 	options.Headers = options.Headers or {}
 	if options.Headers then assert(type(options.Headers) == "table", "invalid option 'Headers' for argument #1 to 'request' (table expected, got " .. type(options.Url) .. ") ", 2) end
-	options.Headers["User-Agent"] = options.Headers["User-Agent"] or useragent
+	options.Headers["User-Agent"] = options.Headers["User-Agent"] or user_agent
 
-	local response = Bridge:Request(options)
-
-	return response
+	return Bridge:Request(options)
 end
 
 
@@ -226,6 +238,12 @@ setmetatable(Executor.game, {
 		if index == "HttpGet" or index == "HttpGetAsync" then
 			return function(self, ...)
 				return Utils:HttpGet(...)
+			end
+		end
+
+		if type(game[index]) == "function" then
+			return function(self, ...)
+				return game[index](game, ...)
 			end
 		end
 
@@ -260,6 +278,30 @@ function Executor.loadstring(chunk, chunk_name)
 	setfenv(func, getfenv(debug.info(2, 'f')))
 
 	return func
+end
+
+function Executor.identifyexecutor()
+	return "Executor", VERSION
+end
+
+function Executor.getscriptbytecode(script)
+	assert(type(script) == "Instance", "invalid argument #1 to 'getscriptbytecode' (Instance expected, got " .. type(chunk) .. ") ", 2)
+
+	if script.ClassName ~= "ModuleScript" and script.ClassName ~= "LocalScript" then
+		error(script.Name .. " is not a LocalScript or a ModuleScript", 2)
+	end
+	
+	
+	local response = Bridge:SendAndReceive({
+		["action"] = "get_script_bytecode",
+		["path"] = script:GetFullName()
+	})
+
+	if not response["success"] then
+		error(response["message"], 2)
+	end
+
+	return Executor.base64.decode(response["bytecode"])
 end
 --\\
 
@@ -303,8 +345,6 @@ client.MessageReceived:Connect(function(data)
 		setfenv(func, Utils:MergeTable(getfenv(func), Executor))
 
 		task.spawn(func)
-		
-		print("True")
 
 		response["success"] = true
 		return Bridge:Send(response)
@@ -327,3 +367,5 @@ end
 Bridge:Send({
 	["action"] = "initialize",
 })
+
+print("[Executor] Injected successfully")
