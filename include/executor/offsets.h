@@ -30,8 +30,8 @@ namespace Offsets {
 
 	namespace ModuleScript {
 		inline constexpr uintptr_t ByteCode = 0x150;
-        inline constexpr uintptr_t IsCoreScript = 0x188;
-        inline constexpr uintptr_t ModuleFlags = (IsCoreScript - 0x4);
+        	inline constexpr uintptr_t IsCoreScript = 0x188;
+        	inline constexpr uintptr_t ModuleFlags = (IsCoreScript - 0x4);
 	}
 
 	namespace LocalScript {
